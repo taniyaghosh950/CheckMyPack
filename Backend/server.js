@@ -7,6 +7,7 @@ require("dotenv").config({
 const express = require("express");
 const cors = require("cors");
 const complianceRoutes = require("./routes/complianceRoutes");
+const productRoutes = require("./routes/productRoutes");
 const connectDB = require("./config/db");
 
 // Create and configure the Express application.
@@ -18,6 +19,7 @@ app.use(express.json());
 
 // Mount compliance-related API routes.
 app.use("/api", complianceRoutes);
+app.use("/api/products", productRoutes);
 
 // Health check endpoint for confirming that the backend is running.
 app.get("/api/health", (req, res) => {
