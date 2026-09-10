@@ -1,5 +1,7 @@
 const Product = require("../models/Product");
 
+const barcodePattern = /^[0-9A-Za-z-]{8,32}$/;
+
 function handleError(res, error) {
 	if (error.name === "ValidationError") {
 		return res.status(400).json({ success: false, message: error.message });
@@ -26,6 +28,32 @@ async function getProducts(req, res) {
 	try {
 		const products = await Product.find().sort({ createdAt: -1 });
 		return res.status(200).json({ success: true, products });
+	} catch (error) {
+		return handleError(res, error);
+	}
+}
+
+async function getProductByBarcode(req, res) {
+	const barcode = req.params.barcode.trim();
+
+	if (!barcodePattern.test(barcode)) {
+		return res.status(400).json({
+			success: false,
+			message: "Barcode must contain 8 to 32 letters, numbers, or hyphens",
+		});
+	}
+
+	try {
+		const product = await Product.findOne({ barcode });
+		if (!product) {
+			return res.status(404).json({
+				success: false,
+				message: "No product found for this barcode",
+				barcode,
+			});
+		}
+
+		return res.status(200).json({ success: true, product });
 	} catch (error) {
 		return handleError(res, error);
 	}
@@ -76,6 +104,7 @@ async function deleteProduct(req, res) {
 module.exports = {
 	createProduct,
 	getProducts,
+	getProductByBarcode,
 	getProduct,
 	updateProduct,
 	deleteProduct,
