@@ -3,6 +3,7 @@ const fs = require("fs/promises");
 const path = require("path");
 const sharp = require("sharp");
 const Scan = require("../models/Scan");
+const { preprocessImage, processedImageDirectory } = require("../services/imagePreprocessingService");
 
 const uploadDirectory = path.join(__dirname, "..", "uploads");
 const imageFields = {
@@ -45,6 +46,7 @@ async function uploadScanImages(req, res) {
 	const storedFiles = [];
 	try {
 		await fs.mkdir(uploadDirectory, { recursive: true });
+		await fs.mkdir(processedImageDirectory, { recursive: true });
 		const imageMetadata = [];
 
 		for (const [fieldName, position] of Object.entries(imageFields)) {
@@ -62,6 +64,8 @@ async function uploadScanImages(req, res) {
 			const storedPath = path.join(uploadDirectory, storedFilename);
 			await fs.writeFile(storedPath, file.buffer, { flag: "wx" });
 			storedFiles.push(storedPath);
+			const processedImage = await preprocessImage(file.buffer, imageId);
+			storedFiles.push(path.join(processedImageDirectory, processedImage.processedFilename));
 
 			imageMetadata.push({
 				imageId,
@@ -72,6 +76,8 @@ async function uploadScanImages(req, res) {
 				mimeType: file.mimetype,
 				fileSize: file.size,
 				uploadedAt: new Date(),
+				...processedImage,
+				processedAt: new Date(),
 			});
 		}
 
@@ -87,12 +93,21 @@ async function uploadScanImages(req, res) {
 		if (error.status === 400) {
 			return res.status(400).json({ success: false, message: error.message });
 		}
+		if (error.status === 422) {
+			return res.status(422).json({ success: false, message: error.message });
+		}
 		if (error.name === "ValidationError" || error.name === "MongoServerError") {
 			return res.status(400).json({ success: false, message: error.message });
 		}
 
 		if (error.message?.includes("Input buffer contains unsupported image format")) {
 			return res.status(400).json({ success: false, message: "Uploaded files must contain valid image data" });
+		}
+		if (error.message?.includes("Input buffer") || error.message?.includes("unsupported image")) {
+			return res.status(422).json({
+				success: false,
+				message: "Unable to process the uploaded image. Please upload a valid, readable image and try again.",
+			});
 		}
 
 		console.error(error);
