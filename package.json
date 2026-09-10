@@ -1,0 +1,11 @@
+{
+  "name": "checkmypack",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix Backend run dev",
+    "start": "npm --prefix Backend start",
+    "build": "npm --prefix Backend run build",
+    "test": "npm --prefix Backend test"
+  }
+}
