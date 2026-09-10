@@ -1,13 +1,14 @@
 const assert = require("node:assert/strict");
 const fs = require("fs/promises");
 const path = require("path");
-const { after, beforeEach, test } = require("node:test");
+const { before, beforeEach, test } = require("node:test");
 const request = require("supertest");
 const sharp = require("sharp");
 const app = require("../app");
 const Scan = require("../models/Scan");
 
 const uploadDirectory = path.join(__dirname, "..", "uploads");
+const processedUploadDirectory = path.join(__dirname, "..", "processed-uploads");
 const scanId = "507f1f77bcf86cd799439011";
 const imageFiles = {
 	frontImage: { name: "front label.jpg", mime: "image/jpeg", format: "jpeg" },
@@ -15,7 +16,7 @@ const imageFiles = {
 	sideImage: { name: "side label.webp", mime: "image/webp", format: "webp" },
 };
 
-async function imageBuffer(format, size = 20) {
+async function imageBuffer(format, size = 400) {
 	return sharp({
 		create: {
 			width: size,
@@ -39,13 +40,18 @@ function addAllImages(uploadRequest) {
 	})();
 }
 
-beforeEach(async () => {
-	await fs.rm(uploadDirectory, { recursive: true, force: true });
-	Scan.findByIdAndUpdate = async (id, update) => ({ _id: id, images: update.$set.images });
+async function cleanUploadDirectories() {
+	const options = { recursive: true, force: true, maxRetries: 10, retryDelay: 100 };
+	await fs.rm(uploadDirectory, options);
+	await fs.rm(processedUploadDirectory, options);
+}
+
+before(async () => {
+	await cleanUploadDirectories();
 });
 
-after(async () => {
-	await fs.rm(uploadDirectory, { recursive: true, force: true });
+beforeEach(async () => {
+	Scan.findByIdAndUpdate = async (id, update) => ({ _id: id, images: update.$set.images });
 });
 
 test("accepts a valid front image", async () => {
@@ -128,4 +134,33 @@ test("stores image metadata with the scan", async () => {
 		["front", "back", "side"]
 	);
 	assert.ok(persistedUpdate.update.$set.images.every((image) => image.storedFilename && image.fileSize && image.uploadedAt));
+	assert.ok(persistedUpdate.update.$set.images.every((image) => image.processedFilename && image.processedPath));
+	assert.ok(persistedUpdate.update.$set.images.every((image) => image.processedMimeType === "image/webp"));
+});
+
+test("resizes and stores processed images separately from originals", async () => {
+	const response = request(app).post(`/api/scans/${scanId}/images`);
+	for (const [field, file] of Object.entries(imageFiles)) {
+		response.attach(field, await imageBuffer(file.format, 2500), { filename: file.name, contentType: file.mime });
+	}
+	const result = await response;
+	assert.equal(result.status, 201);
+	for (const image of result.body.scan.images) {
+		assert.notEqual(image.storedPath, image.processedPath);
+		assert.ok(image.processedPath.startsWith("/processed-uploads/"));
+		assert.ok(image.processedWidth <= 2000);
+		assert.ok(image.processedHeight <= 2000);
+		assert.ok(await fs.stat(path.join(__dirname, "..", image.storedPath.slice(1))));
+		assert.ok(await fs.stat(path.join(__dirname, "..", image.processedPath.slice(1))));
+	}
+});
+
+test("rejects poor-quality images with a clear retry message", async () => {
+	const response = request(app).post(`/api/scans/${scanId}/images`);
+	response.attach("frontImage", await imageBuffer("jpeg", 100), { filename: "front.jpg", contentType: "image/jpeg" });
+	response.attach("backImage", await imageBuffer("png"), { filename: "back.png", contentType: "image/png" });
+	response.attach("sideImage", await imageBuffer("webp"), { filename: "side.webp", contentType: "image/webp" });
+	const result = await response;
+	assert.equal(result.status, 422);
+	assert.match(result.body.message, /quality is too low|upload an image/i);
 });

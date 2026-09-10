@@ -25,6 +25,36 @@ const scanImageSchema = new mongoose.Schema(
 			type: String,
 			required: true,
 		},
+		processedFilename: {
+			type: String,
+			required: true,
+		},
+		processedPath: {
+			type: String,
+			required: true,
+		},
+		processedMimeType: {
+			type: String,
+			required: true,
+			enum: ["image/webp"],
+		},
+		processedFileSize: {
+			type: Number,
+			required: true,
+			min: 1,
+		},
+		processedWidth: {
+			type: Number,
+			required: true,
+		},
+		processedHeight: {
+			type: Number,
+			required: true,
+		},
+		processedAt: {
+			type: Date,
+			required: true,
+		},
 		mimeType: {
 			type: String,
 			required: true,
