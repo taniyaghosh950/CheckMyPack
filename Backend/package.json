@@ -7,7 +7,7 @@
     "dev": "nodemon server.js",
     "start": "node server.js",
     "build": "node --check server.js && node --check config/db.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test test/scanUpload.test.js"
   },
   "keywords": [],
   "author": "",
@@ -17,9 +17,12 @@
     "cors": "^2.8.6",
     "dotenv": "^16.4.7",
     "express": "^5.2.1",
-    "mongoose": "^8.19.1"
+    "mongoose": "^8.19.1",
+    "multer": "^2.3.0",
+    "sharp": "^0.35.4"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14"
+    "nodemon": "^3.1.14",
+    "supertest": "^7.2.2"
   }
 }
